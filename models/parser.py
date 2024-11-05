@@ -165,18 +165,21 @@ class Parser(object):
         # chart(s) updating scheme. The function pointer here is where you will update your chart(s) and only needs
         # to be called from here.
 
-        for i in range(len(list_of_words)):
+        for i in range(1, len(list_of_words)):
             for j in range(len(list_of_words) - i):
-                # thus far we've looped through each cell
-                # now we need to find A and B
-                a_nonterms = [(i - k, j + k) for k in range(1, i+1)]
-                b_nonterms_rev = [(i - k, j) for k in range(i, 0, -1)]
+                for k in range(i):
+                    # print(f"i:{i} j:{j} A ({i - k}, {j}) B ({k}, {j + i - k})")
+                    update_func_ptr((i, j), (i - k, j), (k, j + i - k))
+                # # thus far we've looped through each cell
+                # # now we need to find A and B
+                # a_nonterms = [(i - k, j + k) for k in range(1, i+1)]
+                # b_nonterms_rev = [(i - k, j) for k in range(i, 0, -1)]
 
-                # every possible combination of a \in A and b \in B
-                # b_nonterms_rev = b_nonterms[::-1]
-                for (a_coord, b_coord) in zip(a_nonterms, b_nonterms_rev):
-                    print(f"i: {i} j: {j} a: {a_coord} b: {b_coord}")
-                    update_func_ptr((i, j), a_coord, b_coord)
+                # # every possible combination of a \in A and b \in B
+                # # b_nonterms_rev = b_nonterms[::-1]
+                # for (a_coord, b_coord) in zip(a_nonterms, b_nonterms_rev):
+                #     print(f"i: {i} j: {j} a: {a_coord} b: {b_coord}")
+                #     update_func_ptr((i, j), a_coord, b_coord)
         return
 
     def cky(self: Type["Parser"],
