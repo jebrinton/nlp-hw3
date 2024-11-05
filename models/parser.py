@@ -169,7 +169,7 @@ class Parser(object):
             for j in range(len(list_of_words) - i):
                 for k in range(i):
                     # print(f"i:{i} j:{j} A ({i - k}, {j}) B ({k}, {j + i - k})")
-                    update_func_ptr((i, j), (k, j + i - k), (i - k, j))
+                    update_func_ptr((i, j), (k, j), (i - 1 - k, j + 1 + k))
                 # # thus far we've looped through each cell
                 # # now we need to find A and B
                 # a_nonterms = [(i - k, j + k) for k in range(1, i+1)]
