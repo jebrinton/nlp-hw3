@@ -5,6 +5,7 @@ import itertools
 import math
 import os
 import sys
+from collections import defaultdict
 
 
 _cd_ = os.path.abspath(os.path.dirname(__file__))
@@ -111,7 +112,7 @@ class Parser(object):
         return list_of_words
 
     def _traverse_backptrs_dfs(self: Type["Parser"],
-                               backptrs: object,    # your own structure datatype goes here
+                               backptrs: Sequence[Sequence[Mapping[str, Sequence[Tuple[int, int, str]]]]],    # your own structure datatype goes here
                                cur_row: int,        # the current row of the expansion in the backptrs
                                cur_col: int,        # the current col of the expansion in the backptrs
                                cur_symb: str        # the current symbol of the expansion
@@ -123,11 +124,22 @@ class Parser(object):
         # TODO: complete me!
         # This method should walk through your backpointers structure (you can do this recursively or iteratively)
         # and build the tree structure.
+        print(f"({cur_row}, {cur_col}) @ {cur_symb}")
+        children = backptrs[cur_row][cur_col][cur_symb]
+        print("chi", children)
+        for (row, col, symb) in children:
+            if row >= 0:
+                node.append_child(self._traverse_backptrs_dfs(backptrs, row, col, symb))
 
+        # (l_row, l_col, l_symb), (r_row, r_col, r_symb) = backptrs[cur_row][cur_col][cur_symb]
+        # if l_row != None:
+        #     node.append_child(self._traverse_backptrs_dfs(backptrs, l_row, l_col, l_symb))
+        # if r_row != None:
+        #     node.append_child(self._traverse_backptrs_dfs(backptrs, r_row, r_col, r_symb))
         return node
 
     def generate_best_tree(self: Type["Parser"],
-                           backptrs: object         # your own structure datatype goes here
+                           backptrs: Sequence[Sequence[Mapping[str, Sequence[Tuple[int, int, str]]]]]         # your own structure datatype goes here
                            ) -> Tree:
         # TODO: complete me!
         # Here is the main strategy for this method:
@@ -135,7 +147,11 @@ class Parser(object):
         #    you can do the walking part with self._traverse_backptrs_dfs
         #    but you are free to use whatever indexing you want.
 
-        root: Node = None
+        start_row = len(backptrs) - 1
+        start_col = 0
+        start_sym = self.grammar.start
+
+        root: Node = self._traverse_backptrs_dfs(backptrs, start_row, start_col, start_sym)
         return Tree(root)
 
     def _cky_traverse(self: Type["Parser"],
@@ -222,6 +238,7 @@ class Parser(object):
             rr, rc = right_prod_coords
             for lprod, rprod in itertools.product(chart[lr][lc], chart[rr][rc]):
                 for nonterm, _ in self.grammar.get_rules_to(lprod, rprod):
+                    print(f"nonterm {nonterm} -> {lprod} y {rprod}")
                     chart[tr][tc].add(nonterm)
 
         self._cky_traverse(list_of_words, update_cky_chart)
@@ -265,13 +282,24 @@ class Parser(object):
         # and row=-1 to be the "top" of the chart (where the start nonterminal should be).
         # You are welcome to change this indexing if you want, and you are also welcome to change this paradigm
         # and allocate a full nxn chart if you wish. If you do so this code will need to change.
-        chart: Sequence[Sequence[Set[str]]] = [[set() for _ in range(len(list_of_words) - i)]
-                                                for i in range(len(list_of_words))]
+        # Mapping["name of child", {1 or 2 of} (row, col, "name of parent")]
+        # chart: Sequence[Sequence[Mapping[str, Sequence[Tuple[int, int, str]]]]] = [[dict() for _ in range(len(list_of_words) - i)]
+        chart: Sequence[Sequence[Mapping[str, Sequence[Tuple[int, int, str]]]]] = [[dict() for _ in range(len(list_of_words) - i)] for i in range(len(list_of_words))]
+        logprobs = [[defaultdict(lambda: -math.inf) for _ in range(len(list_of_words) - i)] for i in range(len(list_of_words))]
+
+        def log(x):
+            if x < 0:
+                raise ValueError("negative not permitted")
+            return math.log(x, log_base)
 
         # initialize chart
-        for i, word in enumerate(list_of_words):
-            for nonterm, _ in self.grammar.get_rules_to(word):
-                chart[0][i].add(nonterm)        # if you change the indexing scheme you need to change this row=0
+        for col, word in enumerate(list_of_words):
+            for nonterm, prob in self.grammar.get_rules_to(word):
+                print("nterm", type(nonterm), nonterm, prob)
+                if log(prob) > logprobs[0][col][nonterm]:
+                    logprobs[0][col][nonterm] = log(prob)
+                    chart[0][col][nonterm] = [(-1, col, word)]
+                # logprobs[0][col][nonterm] = max(logprobs[0][col][nonterm], log(prob))   # if you change the indexing scheme you need to change this row=0
 
         def update_cky_chart(target_coords: Tuple[int, int],
                              left_prod_coords: Tuple[int, int],
@@ -280,14 +308,45 @@ class Parser(object):
             tr, tc = target_coords
             lr, lc = left_prod_coords
             rr, rc = right_prod_coords
-            for lprod, rprod in itertools.product(chart[lr][lc], chart[rr][rc]):
-                for nonterm, _ in self.grammar.get_rules_to(lprod, rprod):
-                    chart[tr][tc].add(nonterm)
+            # for lprod, rprod in itertools.product(chart[lr][lc], chart[rr][rc]):
+            #     print(lprod, "lflrl", rprod)
+            for lprod_all in chart[lr][lc].items():
+                for rprod_all in chart[rr][rc].items():
+                    print(lprod_all, type(lprod_all), "lprp", rprod_all)
+                    # print(f"rprod is {rprod} of {type(rprod)}")
+                    lprod = lprod_all[0]
+                    rprod = rprod_all[0]
+
+                    # print(lprod, "jack o lantern", rprod)
+
+                    for nonterm, prob in self.grammar.get_rules_to(lprod, rprod):
+                        # print(f"nonterm {nonterm} -> {lprod} y {rprod}")
+
+                        if nonterm == 'TOP':
+                            print('top')
+                            prob_prime = log(prob) + logprobs[lr][lc][lprod] + logprobs[rr][rc][rprod]
+                            print(prob_prime)
+                            print(logprobs[tr][tc][nonterm])
+                            return
+
+                        # print("lprod", lprod, "rprod ", rprod)
+                        prob_prime = log(prob) + logprobs[lr][lc][lprod] + logprobs[rr][rc][rprod]
+
+                        if prob_prime > logprobs[tr][tc][nonterm]:
+                            print("up date")
+                            logprobs[tr][tc][nonterm] = prob_prime
+                            chart[tr][tc][nonterm] = [(lr, lc, lprod), (rr, rc, rprod)]
+
+                        # logprobs[tr][tc][lprod] = max(logprobs[tr][tc][lprod], prob_prime)
 
         self._cky_traverse(list_of_words, update_cky_chart)
 
-        # return whether the parse is possible. You don't need to change the second argument from -math.inf.
-        # if you change the indexing you will need to change the [row=-1][col=-1]
+        if self.grammar.start in chart[-1][-1]:
+            return self.generate_best_tree(chart), logprobs[-1][-1][self.grammar.start]
+        else:
+            return None, -math.inf
+
+        return self.generate_best_tree(chart), logprobs[-1][-1][self.grammar.start]
         return self.grammar.start in chart[-1][-1], -math.inf
     
         # add datastructures for backptrs and best_logprob

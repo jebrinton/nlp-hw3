@@ -45,8 +45,7 @@ def part_a(model: Parser,
         for line in dev_data:
             print(line)
             # parse, logprob = model.cky_viterbi(line) <- this is the old line
-            parse, logprob = model.cky(line)
-
+            parse, logprob = model.cky_viterbi(line)
 
             # parse can fail
             if parse is None:
