@@ -124,12 +124,13 @@ class Parser(object):
         # TODO: complete me!
         # This method should walk through your backpointers structure (you can do this recursively or iteratively)
         # and build the tree structure.
-        print(f"({cur_row}, {cur_col}) @ {cur_symb}")
         children = backptrs[cur_row][cur_col][cur_symb]
-        print("chi", children)
         for (row, col, symb) in children:
             if row >= 0:
                 node.append_child(self._traverse_backptrs_dfs(backptrs, row, col, symb))
+            elif row == -1:
+                leaf = Node(symb, [])
+                node.append_child(leaf)
 
         # (l_row, l_col, l_symb), (r_row, r_col, r_symb) = backptrs[cur_row][cur_col][cur_symb]
         # if l_row != None:
@@ -152,6 +153,7 @@ class Parser(object):
         start_sym = self.grammar.start
 
         root: Node = self._traverse_backptrs_dfs(backptrs, start_row, start_col, start_sym)
+        print(f"tr1: {root}")
         return Tree(root)
 
     def _cky_traverse(self: Type["Parser"],
@@ -238,7 +240,6 @@ class Parser(object):
             rr, rc = right_prod_coords
             for lprod, rprod in itertools.product(chart[lr][lc], chart[rr][rc]):
                 for nonterm, _ in self.grammar.get_rules_to(lprod, rprod):
-                    print(f"nonterm {nonterm} -> {lprod} y {rprod}")
                     chart[tr][tc].add(nonterm)
 
         self._cky_traverse(list_of_words, update_cky_chart)
@@ -287,7 +288,7 @@ class Parser(object):
         chart: Sequence[Sequence[Mapping[str, Sequence[Tuple[int, int, str]]]]] = [[dict() for _ in range(len(list_of_words) - i)] for i in range(len(list_of_words))]
         logprobs = [[defaultdict(lambda: -math.inf) for _ in range(len(list_of_words) - i)] for i in range(len(list_of_words))]
 
-        def log(x):
+        def log(x) -> float:
             if x < 0:
                 raise ValueError("negative not permitted")
             return math.log(x, log_base)
@@ -295,7 +296,6 @@ class Parser(object):
         # initialize chart
         for col, word in enumerate(list_of_words):
             for nonterm, prob in self.grammar.get_rules_to(word):
-                print("nterm", type(nonterm), nonterm, prob)
                 if log(prob) > logprobs[0][col][nonterm]:
                     logprobs[0][col][nonterm] = log(prob)
                     chart[0][col][nonterm] = [(-1, col, word)]
@@ -312,50 +312,30 @@ class Parser(object):
             #     print(lprod, "lflrl", rprod)
             for lprod_all in chart[lr][lc].items():
                 for rprod_all in chart[rr][rc].items():
-                    print(lprod_all, type(lprod_all), "lprp", rprod_all)
-                    # print(f"rprod is {rprod} of {type(rprod)}")
                     lprod = lprod_all[0]
                     rprod = rprod_all[0]
-
-                    # print(lprod, "jack o lantern", rprod)
-
                     for nonterm, prob in self.grammar.get_rules_to(lprod, rprod):
-                        # print(f"nonterm {nonterm} -> {lprod} y {rprod}")
-
-                        if nonterm == 'TOP':
-                            print('top')
-                            prob_prime = log(prob) + logprobs[lr][lc][lprod] + logprobs[rr][rc][rprod]
-                            print(prob_prime)
-                            print(logprobs[tr][tc][nonterm])
-                            return
-
-                        # print("lprod", lprod, "rprod ", rprod)
                         prob_prime = log(prob) + logprobs[lr][lc][lprod] + logprobs[rr][rc][rprod]
-
+                        # print(f"p' {prob_prime} for {nonterm} from {lprod}, {rprod}")
                         if prob_prime > logprobs[tr][tc][nonterm]:
-                            print("up date")
                             logprobs[tr][tc][nonterm] = prob_prime
                             chart[tr][tc][nonterm] = [(lr, lc, lprod), (rr, rc, rprod)]
 
-                        # logprobs[tr][tc][lprod] = max(logprobs[tr][tc][lprod], prob_prime)
-
         self._cky_traverse(list_of_words, update_cky_chart)
 
-        if self.grammar.start in chart[-1][-1]:
-            return self.generate_best_tree(chart), logprobs[-1][-1][self.grammar.start]
+        start_row = len(chart) - 1
+        start_col = 0
+        start_symb = self.grammar.start
+
+        if self.grammar.start in chart[start_row][start_col]:
+            return self.generate_best_tree(chart), logprobs[start_row][start_col][self.grammar.start]
         else:
             return None, -math.inf
 
         return self.generate_best_tree(chart), logprobs[-1][-1][self.grammar.start]
         return self.grammar.start in chart[-1][-1], -math.inf
     
-        # add datastructures for backptrs and best_logprob
-        # además tienes que añadir
-        # update backpointer & best_logprob
-        # return None, -math.inf
-    
 # if __name__ == "__main__":
 #     parser = Parser()
 #     parser.finalize()
 #     parser.cky("This is a sentence")
-
